@@ -10,19 +10,22 @@ tag_dict = {'PRP$': 0.0, 'VBG': 0.0, 'FW': 0.0, 'VBN': 0.0, 'VBP': 0.0, 'WDT': 0
 class Essay:
   def __init__(self, essay_row):
     self.pid = essay_row[0]
-    #self.title = regex_nonprintable.sub(' ', essay_row[2])
+    self.title = regex_nonprintable.sub(' ', essay_row[2])
+    self.short = regex_nonprintable.sub(' ', essay_row[3])
+    self.need = regex_nonprintable.sub(' ', essay_row[4])
     self.essay= regex_nonprintable.sub('', essay_row[5])
-    #self.title = essay_row[2]
 
   def preprocessing(self):
-    #self.title_tokens = word_tokenize(remove_punctuation(self.title))
+    self.title_tokens = word_tokenize(remove_punctuation(self.title))
+    self.short_tokens = word_tokenize(remove_punctuation(self.short))
+    self.need_tokens = word_tokenize(remove_punctuation(self.need))
     self.essay_tokens = word_tokenize(remove_punctuation(self.essay))
     
   def features_length(self):
     return (len(self.essay_tokens), )
 
   def features_pos_tag(self):
-    blob = tb(self.essay)
+    blob = tb('.'.join([self.title,self.short,self.need,self.essay]))
     counts = Counter(tag for word,tag in blob.tags)
     total = sum(counts.values())
     ratio_dict = tag_dict.copy()
@@ -31,8 +34,9 @@ class Essay:
 
   def readability_features(self):
     features = []
-    n_para = len(re.findall(r'\\n\\n', self.essay))
-    measures = getmeasures(sent_detector.tokenize(self.essay)+['']*n_para)
+    content = '.'.join([self.title,self.short,self.need,self.essay])
+    n_para = len(re.findall(r'\\n\\n', content))
+    measures = getmeasures(sent_detector.tokenize(content)+['']*n_para)
     grades = measures['readability grades']
     features += grades.values()
     sent_info = measures['sentence info']
@@ -47,22 +51,5 @@ class Essay:
     
   def features_all(self):
     self.preprocessing()
-    return self.features_length()# + self.features_pos_tag()
-
-def get_essay_features():
-  essayreader = csv.reader(open('data/essays_fixed.csv'), quotechar='"')
-  essayreader.next()
-  essay_row = essayreader.next()
-  return dict((row[0], Essay(row).features_all()) for row in essayreader)
-  '''
-  dd = {}
-  t0 = time.time()
-  for i, row in enumerate(essayreader):
-    dd[row[0]] = Essay(row).features_all()
-    if (i+1)%1000 == 0:
-      print i+1, time.time()-t0
-  return dd
-  '''
-
-if __name__ == '__main__':
-  dd = get_essay_features()
+    #return self.features_length()
+    return self.features_pos_tag() + self.readability_features()

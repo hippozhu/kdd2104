@@ -7,7 +7,7 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import SGDClassifier, SGDRegressor
 from sklearn.metrics import roc_auc_score as AUC
 
 
@@ -18,25 +18,52 @@ def minibatch_generator(data_size, mb_size=100, n_iter=3):
     for i in xrange(0, data_size, mb_size):
       yield indices[i:min(i+mb_size, data_size)]
 
-def sgd(X_train, y_train, X_validate, y_validate, X_test, cw):
+def sgd_classification(X_train, y_train, X_validate, y_validate, X_test, cw):
   #cw = 2.5
   clf = SGDClassifier(class_weight = {1:cw})
   training_data_size = y_train.shape[0]
-  iter_mb = minibatch_generator(training_data_size)
+  iter_mb = minibatch_generator(training_data_size, n_iter = 3)
   total = 0
   t0 = time()
   recent_auc = []
   for n_batch, batch in enumerate(iter_mb):
     x, y = X_train[batch], y_train[batch]
     clf.partial_fit(x, y, classes = [1, 0])
-    y_pred_validate_val = clf.decision_function(X_validate)
-    auc = AUC(y_validate, y_pred_validate_val)
-    recent_auc.append(auc)
     total += y.shape[0]
-    if (n_batch+1)%100 == 0:
-      last_avg = np.mean(recent_auc)
+    if (n_batch+1)%500 == 0:
+      y_pred_validate_val = clf.decision_function(X_validate)
+      auc = AUC(y_validate, y_pred_validate_val)
+      #recent_auc.append(auc)
+      #last_avg = np.mean(recent_auc)
+      last_avg = auc
       print 'auc:%.3f, recent_aucs:%.3f, %d samples in %ds (cw: %.2f)' %(auc, last_avg, total, time()-t0, cw)
-      recent_auc = []
+      #recent_auc = []
+  print 'cw=%.2f' %cw
+  return clf.decision_function(X_test)
+
+def sgd_regression(X_train, y_train, X_validate, y_validate, X_test, cw):
+  #cw = 2.5
+  clf = SGDRegressor()
+  training_data_size = y_train.shape[0]
+  iter_mb = minibatch_generator(training_data_size, n_iter = 3)
+  total = 0
+  t0 = time()
+  recent_auc = []
+  for n_batch, batch in enumerate(iter_mb):
+    x, y = X_train[batch], y_train[batch]
+    sw = np.ones(y.shape[0])
+    sw[np.where(y==1)[0]] = cw
+    clf.partial_fit(x, y, sample_weight=sw)
+    #clf.partial_fit(x, y)
+    total += y.shape[0]
+    if (n_batch+1)%500 == 0:
+      y_pred_validate_val = clf.decision_function(X_validate)
+      auc = AUC(y_validate, y_pred_validate_val)
+      #recent_auc.append(auc)
+      #last_avg = np.mean(recent_auc)
+      last_avg = auc
+      print 'auc:%.3f, recent_aucs:%.3f, %d samples in %ds (cw: %.2f)' %(auc, last_avg, total, time()-t0, cw)
+      #recent_auc = []
   print 'cw=%.2f' %cw
   return clf.decision_function(X_test)
 

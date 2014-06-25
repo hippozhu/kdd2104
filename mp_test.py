@@ -53,18 +53,21 @@ class CSVWorker(object):
 
   def calc_features(self):
     p_name = multiprocessing.current_process().name
+    t0 = time()
     for i, row in enumerate(iter(self.inq.get, 'STOP')):
       try:
 	essay = Essay(row)
 	essay.preprocessing()
         #self.outq.put( (row[0], Essay(row).readability_features()) )
-        self.outq.put( (row[0], len(essay.essay_tokens)) )
+        #self.outq.put( (row[0], essay.features_all()) )
+        self.outq.put( (row[0], essay.title_tokens+essay.short_tokens\
+	+essay.need_tokens+essay.essay_tokens) )
       except ValueError:
         #self.outq.put( (row[0], tuple([-1]*31)) )
         self.outq.put( (row[0], 0) )
         print 'Empty essay at %s' %(row[0])
       if (i+1)%10000 == 0:
-	print p_name, i+1
+	print '%s processed %d in %.0f secs' %(p_name, i+1, time()-t0)
     self.outq.put('STOP')
 
   def write_output_csv(self, outputfile):
@@ -72,17 +75,9 @@ class CSVWorker(object):
     fout.write('projectid, essay_length\n')
     #dict_feature = {}
     for i in xrange(self.numprocs):
-      for pid, length in iter(self.outq.get, 'STOP'):
-        fout.write(','.join([pid, str(length)]) + '\n')
-    '''
-      #dict_feature.update(\
-      #dict((pid, features) for pid, features in iter(self.outq.get, 'STOP')))
-    fout.write('\n'.join(','.join(str(feature)\
-    for feature in dict_feature[kk]) for kk in pid_train) + '\n')
-    fout.write('\n'.join(','.join(str(feature)\
-    for feature in dict_feature[kk]) for kk in pid_test) + '\n')
-    '''
+      for pid, features in iter(self.outq.get, 'STOP'):
+        fout.write(','.join([pid] + [str(f) for f in features]) + '\n')
     fout.close()
 
 if __name__ == '__main__':
-  c = CSVWorker(15, 'data/essays.csv', 'features/eassy_len.csv')
+  c = CSVWorker(15, 'data/essays.csv', 'features/essay_tokeninzed.csv')
