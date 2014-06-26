@@ -38,6 +38,21 @@ def average_performance(group):
   avg_performance = np.nan_to_num(map(lambda rank: sorted_performance[:min(n_train, rank-1)].mean(axis=0), date_rank))
   return pd.DataFrame(avg_performance, columns=['avg_'+l for l in label_t_cols], index=group.index)
 
+def momentum_performance(data, beta):
+  inq =  multiprocessing.Queue()
+  outq = multiprocessing.Queue()
+  def calc():
+    for group in iter(inq.get, 'STOP'):
+      sorted_perf = group.sort('date_posted')[label_t_cols].values
+      momentum_perf = np.zeros(len(label_t_cols))
+      last_perf = sorted_perf[0]
+      for current_perf in sorted_perf[1:]:f
+        last_perf = beta*current_perf + (1-beta)*last_perf
+	momentum_perf = np.vstack((momentum_perf, last_perf))
+        
+  grouped = data[['teacher_acctid', 'date_posted'] + label_t_cols].groupby('teacher_acctid')
+  for _, group in grouped:
+    inq.put(group)
 #def load_features_project():
 num_cols = ['total_price_excluding_optional_support','total_price_including_optional_support', 'students_reached']
 bin_cols = ['school_charter', 'school_magnet', 'school_year_round', 'school_nlns', 'school_kipp', 'school_charter_ready_promise', 'teacher_teach_for_america', 'teacher_ny_teaching_fellow', 'eligible_double_your_impact_match', 'eligible_almost_home_match']
@@ -80,14 +95,12 @@ df_new = pd.read_csv('features/nproj_before_teacher.csv', index_col='projectid')
 df_new = normalize_num(df_new, nproj_before_teacher, 213, 1)
 df_data = df_data.merge(df_new, how='left', left_index=True, right_index=True)
 
-
 #------------------------# of words in essay--------------------#
 essay_length = 'essay_length'
 num_cols.append(essay_length)
 df_new = pd.read_csv('features/essay_len.csv', index_col='projectid')
 df_new = normalize_num(df_new, essay_length, 1000, 0)
 df_data = df_data.merge(df_new,left_index=True, right_index=True)
-
 
 #----------------average label of previous projects---------------#
 #df_data[nproj_before_teacher] = df_data.groupby('teacher_acctid')['date_posted'].rank(ascending=True, method='min')
@@ -97,7 +110,6 @@ df_data = df_data.merge(df_new,left_index=True, right_index=True)
 #df_avg = pickle.load(open('df_avg', 'rb'))
 df_new = pd.read_csv('features/average_label.csv', index_col='projectid')
 df_data = df_data.merge(df_new, left_index=True, right_index=True)
-
 '''
 #grouped = grouped.transform(lambda x: x.fillna(x.mean()))
 #---------------------tfidf---------------------------------------#
@@ -117,7 +129,6 @@ df_data[nproj_before_school] = pickle.load(open(nproj_before_school+'.pickle', '
 num_cols.append(nproj_before_school)
 df_data = normalize_num(df_data, nproj_before_school, 741, 1)
 '''
-
 '''
 df_pos_read = pd.read_csv('features/essay_pos_readability.csv', index_col='projectid')
 df_pos_read[read_cols] = MinMaxScaler().fit_transform(df_pos_read[read_cols].values)
@@ -150,11 +161,13 @@ if __name__ == '__main__':
   print 'training'
   idx_label = int(sys.argv[1])
   cw = float(sys.argv[2])
-  pred = sgd_classification(X_train, Y_train[:,idx_label], X_validate, Y_validate[:,idx_label], X_test, cw)
-  #pred = sgd_regression(X_train, Y_train[:,idx_label], X_validate, Y_validate[:,idx_label], X_test, cw)
+  alpha = float(sys.argv[3])
+
+  pred = sgd(X_train, Y_train[:,idx_label], X_validate, Y_validate[:,idx_label], X_test, cw, alpha,\
+  regression=True)
+
   submission = pd.DataFrame()
   submission['projectid'] = data_test.index.tolist()
-  #submission = pickle.load(open('submission_projectid.pickle', 'rb'))
-  submission['target'] = pred
+  submission['is_exciting'] = pred
   submission.to_csv('label%dcw%.1f.csv' %(idx_label, cw), index=False)
   #submission.to_csv('label%d.csv' %(idx_label), index=False)

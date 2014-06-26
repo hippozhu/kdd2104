@@ -3,6 +3,7 @@ import cPickle as pickle
 import sys
 from sklearn.feature_extraction.text import TfidfVectorizer
 from time import time
+import multiprocessing
 
 def essay_tokens_generator(filename):
   fin = open(filename)
@@ -13,6 +14,8 @@ def essay_tokens_generator(filename):
     yield line.strip().split(',')[1]
   fin.close()
 
+
+'''
 #vectorizer = TfidfVectorizer(min_df=5, stop_words='english', max_df=0.5, max_features=1000)
 corpus = essay_tokens_generator(sys.argv[1])
 #vectors = vectorizer.fit_transform(corpus)
@@ -21,7 +24,6 @@ t0 = time()
 vectorizer = pickle.load(open('tfidf_vectorizer', 'rb'))
 vectors = vectorizer.transform(corpus)
 print time()-t0
-'''
 pickle.dump(vectors, open('tfidf1000.pickle', 'wb'))
 sX_test = sparse.csr_matrix(X_test)
 from scipy.sparse import hstack
